@@ -297,6 +297,11 @@ export function createOIDCRouter(
       }
       url.searchParams.set("post_logout_redirect_uri", env.URL);
 
+      // Keycloak 17 and earlier do not implement the RP-initiated logout
+      // spec and only redirect back when the legacy `redirect_uri` parameter
+      // is present. Spec-compliant providers ignore unrecognized parameters.
+      url.searchParams.set("redirect_uri", env.URL);
+
       return ctx.redirect(url.toString());
     } catch (err) {
       Logger.warn("Invalid OIDC logout URL", {

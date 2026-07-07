@@ -31,6 +31,17 @@ describe("oidc", () => {
       ).toEqual("http://localhost:3000");
     });
 
+    it("should include the legacy redirect_uri for Keycloak 17 and earlier", async () => {
+      const res = await server.get("/auth/oidc.logout", {
+        redirect: "manual",
+      });
+      expect(res.status).toEqual(302);
+      const redirectLocation = new URL(res.headers.get("location")!);
+      expect(redirectLocation.searchParams.get("redirect_uri")).toEqual(
+        "http://localhost:3000"
+      );
+    });
+
     it("should include the id_token_hint when present", async () => {
       const res = await server.get("/auth/oidc.logout", {
         redirect: "manual",

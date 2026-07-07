@@ -3,6 +3,7 @@ import { toError } from "@shared/utils/error";
 import Logger from "@server/logging/Logger";
 import env from "../env";
 import { fetchOIDCConfiguration } from "../oidcDiscovery";
+import { deriveKeycloakLogoutUrl } from "./keycloak";
 import { createOIDCRouter } from "./oidcRouter";
 
 const router = new Router();
@@ -25,7 +26,14 @@ const hasIssuerConfig = !!(
 );
 
 if (hasManualConfig) {
-  // Mount endpoints immediately with manual configuration
+  // Mount endpoints immediately with manual configuration. When no logout
+  // endpoint is configured, attempt to derive it from the authorization
+  // endpoint for providers with a known layout, such as Keycloak – otherwise
+  // the provider session would outlive the Outline session and users would be
+  // silently signed back in.
+  env.OIDC_LOGOUT_URI =
+    env.OIDC_LOGOUT_URI ?? deriveKeycloakLogoutUrl(env.OIDC_AUTH_URI);
+
   createOIDCRouter(router, {
     authorizationURL: env.OIDC_AUTH_URI!,
     tokenURL: env.OIDC_TOKEN_URI!,
@@ -46,12 +54,17 @@ if (hasManualConfig) {
       env.OIDC_TOKEN_URI = oidcConfig.token_endpoint;
       env.OIDC_USERINFO_URI = oidcConfig.userinfo_endpoint;
 
+      // An explicitly configured logout endpoint takes precedence over the
+      // discovered end_session_endpoint.
+      env.OIDC_LOGOUT_URI =
+        env.OIDC_LOGOUT_URI ?? oidcConfig.end_session_endpoint;
+
       // Mount endpoints into the existing router
       createOIDCRouter(router, {
         authorizationURL: oidcConfig.authorization_endpoint,
         tokenURL: oidcConfig.token_endpoint,
         userInfoURL: oidcConfig.userinfo_endpoint,
-        logoutURL: oidcConfig.end_session_endpoint,
+        logoutURL: env.OIDC_LOGOUT_URI,
         pkce: oidcConfig.code_challenge_methods_supported?.includes("S256"),
       });
 
